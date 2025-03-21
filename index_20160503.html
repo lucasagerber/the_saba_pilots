@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>The Saba Pilots</title>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script src="http://chancejs.com/chance.min.js"></script>
+    
+    <style>
+    </style>
+
+</head>
+
+<body>
+    
+    <div id="bubbles">      
+    </div>
+    
+    <script>
+    
+        /* Text file to use */
+        
+        text_file = "donquixote_vol1.txt";
+        text_file_2 = "donquixote_vol2.txt";
+       
+        /* Window resizing for svgs */
+    
+        var width = window.self.innerWidth-30,
+            height = window.self.innerHeight*2;
+            
+        window.self.onresize = function() {
+            width = window.self.innerWidth-30,
+            height = window.self.innerHeight*2;   
+            d3.selectAll("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            d3.select("#saba_text")
+                .attr("x", function() { return width/2 })
+                .attr("y", function() { return width/4 })
+                .attr("font-size", function() { return width/20 });
+            
+            d3.select("#saba_middle")
+                .attr("x", function() { return width/4 })
+                .attr("y", function() { return width*2/7 })
+                .attr("font-size", function() { return width/60 });
+            
+            d3.select("#saba_middle")
+                .selectAll("tspan")
+                .attr("x", function() { return width/4 })
+        };
+        
+        /* Function to restrict bubbles into svg frame */
+        
+        function svgBoundary(object, property, maximum) {
+            if (object[property] < object.radius) {
+                return object.radius;
+            }
+            else if (object[property] > (maximum - object.radius)) {
+                return maximum - object.radius;
+            }
+            else {
+                return object[property];
+            };
+        };
+        
+        /* Create bubbles and gravity */
+
+        var svg = d3.select("body")
+            .select("#bubbles")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+        
+        var svg_saba = svg.append("text")
+            .attr("x", function() { return width/2 })
+            .attr("y", function() { return width/4 })
+            .attr("font-size", function() { return width/20 })
+            .attr("text-anchor", "middle")
+            .attr("onclick", "randomLink()")
+            .attr("onmouseover", "sabaHover(this, true)")
+            .attr("onmouseout", "sabaHover(this, false)")
+            .style("cursor", "pointer")
+            .attr("id", "saba_text")
+            .text("The Saba Pilots");
+        
+        var force = d3.layout.force()
+            .gravity(0.005)
+            .friction(0.6)
+            .charge(function(d, i) { return i ? 0 : -2000; })
+            .size([width, height]);
+            
+        createNodes(false, text_file);
+        
+        /* Function to create nodes with gravity force */
+        
+        function createNodes(node, text_file) {
+            d3.text(text_file, function(data) {
+                    var mimic = new MimicDict(data);
+                    
+                    d3.selectAll("#saba_middle")
+                        .remove();
+                
+                    var nodes = d3.range(50).map( function() {
+                            return {
+                                radius: Math.random() * 50 + 40,
+                                phrase: mimic.writeMimic(4),
+                                color: chance.color()
+                            };
+                        }
+                    );
+                    
+                    if (node) {
+                        var selected = d3.select(node);
+                        var node_list = d3.range(1).map( function() {
+                                return {
+                                    radius: selected.select("circle").attr("r"),
+                                    phrase: selected.select("text").text(),
+                                    color: selected.select("circle").style("fill")
+                                };
+                            }
+                        );
+                        nodes[1] = node_list[0];
+                    }
+                    
+                    var root = nodes[0];
+                    root.radius = 0;
+                    root.fixed = true;
+                                        
+                    bubblesEnter(nodes, "updateNodes(this)");
+                    createForce(nodes, root);
+                }
+            );
+        };
+
+        /* Function to update nodes with gravity force */
+        
+        function updateNodes(node) {
+            var selected = d3.select(node);
+            var nodes = d3.range(2).map( function() {
+                    return {
+                        radius: selected.select("circle").attr("r"),
+                        phrase: selected.select("text").text(),
+                        color: selected.select("circle").style("fill")
+                    };
+                }
+            );            
+            
+            var root = nodes[0];
+            root.radius = 0;
+            root.fixed = true;          
+            
+            svg.on("mousemove", function() {} );
+            force.stop();
+            
+            bubblesEnter(nodes, "createNodes(this, text_file)");
+            /*createForce(nodes, root);*/
+            createMiddle(node, text_file_2);
+
+        };
+            
+        /* Function to enter bubble nodes to svg */
+                       
+        function bubblesEnter(nodes, update_command) {           
+            var svg_g = svg.selectAll("g")
+                .data(nodes.slice(1));
+
+            /* Update */
+            svg_g.attr("onclick", update_command);
+            
+            svg_g.selectAll("circle")
+                .data(nodes.slice(1))             
+                .attr("r", function(d) { return d.radius; })
+                .style("fill", function(d) { return d.color; })
+                .attr("cx", function(d) { return width/2; })
+                .attr("cy", function(d) { return height+d.radius+10; })                
+                .transition()
+                .duration(6000)
+                .attr("cx", function(d) { return width/2; })
+                .attr("cy", function(d) { return height/8; });
+
+            svg_g.selectAll("text")
+                .data(nodes.slice(1))        
+                .attr("font-size", function(d) { return 12*(d.radius/50); } )
+                .attr("x", function(d) { return width/2 - d.radius*.85; })
+                .attr("y", function(d) { return height+d.radius+10; })                
+                .transition()
+                .duration(6000)                
+                .attr("x", function(d) { return width/2 - d.radius*.85; })
+                .attr("y", function(d) { return height/8; })
+                .text(function(d) { return d.phrase });
+                            
+            /* Enter */
+            svg_g_enter = svg_g.enter()
+                .append("g")
+                .attr("onclick", "updateNodes(this)")
+                .attr("id", function(d,i) { return "bubble_" + i; })
+                .style("cursor", "pointer");
+                
+            svg_g_enter.append("circle")
+                .attr("r", function(d) { return d.radius; })
+                .attr("onmouseover", "randomColor(this, 'fill')")
+                .style("fill", function(d) { return d.color; });    
+
+            svg_g_enter.append("text")
+                .attr("fill", "white")
+                .attr("font-size", function(d) { return 12*(d.radius/50); } )
+                .text(function(d) { return d.phrase });                    
+
+            /* Exit */
+            svg_g.exit()
+                .transition()
+                .duration(2500)
+                .style("opacity", 0.0)
+                .remove();         
+        };
+        
+        /* Function to add force to nodes in svg */
+        
+        function createForce(nodes, root) {
+            force.nodes(nodes);
+
+            force.start();
+            
+            force.on("tick", function(e) {
+                    var q = d3.geom.quadtree(nodes),
+                        i = 0,
+                        n = nodes.length;
+
+                    while (++i < n) q.visit(collide(nodes[i]));
+
+                    svg.selectAll("g")
+                        .selectAll("circle")
+                        .attr("cx", function(d) { return svgBoundary(d, "x", width); } )
+                        .attr("cy", function(d) { return svgBoundary(d, "y", height); } );
+
+                    svg.selectAll("g")
+                        .selectAll("text")
+                        .attr("x", function(d) { return svgBoundary(d, "x", width) - d.radius*.85; } )
+                        .attr("y", function(d) { return svgBoundary(d, "y", height); } );
+                }    
+            );
+
+            svg.on("mousemove", function() {
+                    var p1 = d3.mouse(this);
+                    root.px = p1[0];
+                    root.py = p1[1];
+                    force.resume();
+                }
+            );
+        };
+
+        /* Function to handle movement of bubble nodes */
+
+        function collide(node) {
+            var r = node.radius + 16,
+                nx1 = node.x - r,
+                nx2 = node.x + r,
+                ny1 = node.y - r,
+                ny2 = node.y + r;
+            return function(quad, x1, y1, x2, y2) {
+                if (quad.point && (quad.point !== node)) {
+                    var x = node.x - quad.point.x,
+                        y = node.y - quad.point.y,
+                        l = Math.sqrt(x * x + y * y),
+                        r = node.radius + quad.point.radius;
+                    if (l < r) {
+                        l = (l - r) / l * .5;
+                        node.x -= x *= l;
+                        node.y -= y *= l;
+                        quad.point.x += x;
+                        quad.point.y += y;
+                    }
+                }
+                return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+            };
+        };
+
+        /* Function to create random poem in middle section */
+        
+        function createMiddle(node, text_file) {
+            d3.text(text_file, function(data) {
+                    var mimic = new MimicDict(data);
+                    
+                    var new_poem = [d3.select(node).select("text").text() + " " + mimic.writeMimic(chance.integer({min: 3, max: 7}))];
+                    var total_lines = chance.integer({min: 5, max: 30})
+                    
+                    for (var i = 0; i < total_lines; i++) {
+                        new_poem.push(mimic.writeMimic(chance.integer({min: 3, max: 12})));
+                    };
+                                        
+                    var saba_middle = svg.append("text")
+                        .attr("x", function() { return width/4 })
+                        .attr("y", function() { return width*2/7 })
+                        .attr("font-size", function() { return width/60 })
+                        .attr("id", "saba_middle");             
+                    
+                    var saba_tspans = saba_middle.selectAll("tspan")
+                        .data(new_poem)
+                    
+                    saba_tspans.enter()
+                        .append("tspan")
+                        .attr("x", function() { return width/4 })
+                        .attr("dy", "1.4em")
+                        .text(function(d, i) { return d; });
+                    
+                    saba_tspans.style("opacity", 0.0)
+                        .transition()
+                        .duration(4000)
+                        .style("opacity", 1.0);                    
+                }
+            );
+        };        
+
+        /* Function to change objects on hover */
+        
+        function sabaHover(node, hover_on) {                
+            if (hover_on) {               
+                d3.select(node)
+                    .transition()
+                    .duration(500)
+                    .attr("font-size", function() { return width/10 });
+            }
+            else {
+                d3.select(node)
+                    .transition()
+                    .duration(500)
+                    .attr("font-size", function() { return width/20 });
+            };
+        };
+        
+        /* Functions for random colors and links */
+        
+        function randomColor(item, property) {
+            item.style[property] = chance.color();
+        };
+
+        function randomLink() {
+            var links = [
+                "https://twitter.com/TheSabaPilots",
+                "https://www.facebook.com/saba.pilots",
+                "https://vimeo.com/user20920573",
+                "https://www.youtube.com/channel/UCEWxoHokkdNq7QGeYVwCEbQ"
+            ];
+            window.open(links[chance.integer({min: 0, max: links.length-1})]);
+        };
+        
+        /* Define mimic object */
+       
+        function MimicDict(text) {
+            this.text = text;
+            this.text_split = text.toLowerCase().replace("'","").split(" ");
+            
+            this.words = Object.create(null);
+            this.storeWordPair = function (word, next_word) {
+                if (this.words[word]) {
+                    this.words[word]['next'].push(next_word);
+                }
+                else {
+                    this.words[word] = Object.create(null);
+                    this.words[word]['next'] = [next_word];
+                };
+            };
+            
+            this.writeMimic = function (word_limit) {
+                var word = this.text_split[chance.integer({min: 0, max: this.text_split.length-1})];
+                var text = word;
+                var text_length = 1;
+                var new_word = ''
+                
+                while (text_length < word_limit) {
+                    if (this.words[word]) {
+                        new_word = this.words[word]['next'][chance.integer({min: 0, max: this.words[word]['next'].length-1})];
+                    }
+                    else {
+                        new_word = this.text_split[chance.integer({min: 0, max: this.text_split.length-1})];
+                    };
+                    
+                    text += ' ' + new_word;
+                    word = new_word;
+                    text_length += 1;
+                };
+                
+                return text;
+            };
+            
+            var prev_word = '';
+            for (var i = 0; i < this.text_split.length; i++) {
+                var word = this.text_split[i];
+                this.storeWordPair(prev_word, word);
+                prev_word = word;
+            };
+        };
+        
+    </script>
+
+</body>
+
+</html>
